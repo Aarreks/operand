@@ -299,7 +299,7 @@ label {
   width: 4px;
   height: calc(100% + 8px);
   background: var(--danger);
-  transform-origin: 50% 50%;
+  transform: translateX(-50%);
 }
 
 .wheel-needle.animate {
@@ -330,8 +330,20 @@ label {
     left: 0;
   }
 
-  70% {
-    left: 90%;
+  35% {
+    left: 100%;
+  }
+
+  45% {
+    left: 0;
+  }
+
+  65% {
+    left: 100%;
+  }
+
+  85% {
+    left: 0;
   }
 
   100% {
