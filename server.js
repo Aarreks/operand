@@ -234,7 +234,7 @@ function maybeStartRound(room) {
   emitRoom(room);
 }
 
-function triggerShotCycle(room, markSeconds) {
+function triggerShotCycle(room, markSeconds = 'live') {
   if (room.state !== 'playing' || room.wheel) {
     return;
   }
@@ -251,7 +251,25 @@ function triggerShotCycle(room, markSeconds) {
   }));
   const totalWeight = weights.reduce((sum, item) => sum + item.weight, 0);
   const remainingSeconds = Math.ceil((room.endsAt - Date.now()) / 1000);
-  if (totalWeight < WHEEL_MIN_WEIGHT || remainingSeconds < WHEEL_MIN_REMAINING_SECONDS) {
+  const meetsRequirements = totalWeight >= WHEEL_MIN_WEIGHT && remainingSeconds >= WHEEL_MIN_REMAINING_SECONDS;
+  if (!meetsRequirements) {
+    if (markSeconds !== 'live') {
+      room.wheel = {
+        id: `${Date.now()}-${markSeconds}-skip`,
+        skipped: true,
+        markSeconds,
+        weights,
+        startedAt: Date.now(),
+        endsAt: Date.now() + 1200
+      };
+      emitRoom(room);
+      setTimeout(() => {
+        if (room.wheel?.id?.endsWith('-skip')) {
+          room.wheel = null;
+          emitRoom(room);
+        }
+      }, 1200);
+    }
     return;
   }
 
@@ -353,6 +371,7 @@ function advancePlayer(room, player) {
   player.score = player.problemIndex;
   addCycleWeight(room, player);
   player.problem = getProblem(room, player.problemIndex);
+  triggerShotCycle(room, 'live');
 }
 
 function addCycleWeight(room, player) {

@@ -34,6 +34,7 @@ let lastPenaltyState = false;
 let lastChallengeState = false;
 let lastShotId = null;
 let lastWheelId = null;
+let wheelTextTimeout = null;
 
 const shotAudio = new Audio('/shot.mp3');
 shotAudio.preload = 'auto';
@@ -229,6 +230,7 @@ function renderWheel(room) {
     wheelText.textContent = '';
     wheelSpinner.innerHTML = '';
     lastWheelId = null;
+    clearWheelTextTimeout();
     return;
   }
 
@@ -236,6 +238,7 @@ function renderWheel(room) {
   if (isNewWheel) {
     lastWheelId = wheel.id;
     wheelSpinner.innerHTML = '';
+    clearWheelTextTimeout();
   }
 
   const weightsText = wheel.weights.map((item) => `${escapeHtml(item.name)}:${item.weight}`).join(' · ');
@@ -278,12 +281,32 @@ function renderWheel(room) {
 
   const spinningNow = getServerNow() < wheel.endsAt;
   if (wheel.skipped) {
+    clearWheelTextTimeout();
     wheelText.textContent = `Wheel check: no solved problems this cycle. No shot. (${weightsText})`;
   } else if (spinningNow) {
+    scheduleWheelTextRefresh(wheel);
     wheelText.textContent = `Wheel spinning... (${weightsText})`;
   } else {
+    clearWheelTextTimeout();
     const targetName = wheel.targetName || 'Someone';
     wheelText.textContent = `${targetName} is getting popped.`;
+  }
+}
+
+function scheduleWheelTextRefresh(wheel) {
+  clearWheelTextTimeout();
+  const delay = Math.max(0, wheel.endsAt - getServerNow());
+  wheelTextTimeout = setTimeout(() => {
+    if (currentRoom?.wheel?.id === wheel.id) {
+      renderWheel(currentRoom);
+    }
+  }, delay + 10);
+}
+
+function clearWheelTextTimeout() {
+  if (wheelTextTimeout) {
+    clearTimeout(wheelTextTimeout);
+    wheelTextTimeout = null;
   }
 }
 
