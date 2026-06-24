@@ -271,21 +271,39 @@ label {
   background: #fafafa;
 }
 
-.wheel-spinner {
-  display: flex;
-  max-width: 320px;
-  overflow: hidden;
+.wheel-track {
+  position: relative;
+  display: block;
+  height: 32px;
   border: 1px solid #cccccc;
   background: #ffffff;
-  white-space: nowrap;
-  animation: wheel-spin 1.2s steps(10, end);
+  overflow: hidden;
 }
 
-.wheel-spinner span {
-  min-width: 130px;
-  padding: 5px 8px;
-  text-align: center;
+.wheel-segment {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
   font-weight: bold;
+  color: #222222;
+  border-right: 1px solid #e5e5e5;
+}
+
+.wheel-needle {
+  position: absolute;
+  top: -4px;
+  width: 4px;
+  height: calc(100% + 8px);
+  background: var(--danger);
+  transform-origin: 50% 50%;
+}
+
+.wheel-needle.animate {
+  animation: wheel-needle 1.2s ease-out forwards;
 }
 
 .wheel-text {
@@ -307,13 +325,17 @@ label {
   color: #8a5a00;
 }
 
-@keyframes wheel-spin {
-  from {
-    transform: translateX(0);
+@keyframes wheel-needle {
+  0% {
+    left: 0;
   }
 
-  to {
-    transform: translateX(-180px);
+  70% {
+    left: 90%;
+  }
+
+  100% {
+    left: var(--needle-left, 0%);
   }
 }
 

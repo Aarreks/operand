@@ -203,7 +203,7 @@ function renderProblem(room) {
   problem.classList.toggle('penalty-problem', penaltyActive);
   problem.classList.toggle('challenge-problem', challengeActive);
   challengeBox.classList.toggle('hidden', !challengeActive);
-  challengeBox.textContent = challengeActive ? 'Shot finalizer: answer this negative problem here to fire the shot. It scores 1 point.' : '';
+  challengeBox.textContent = challengeActive ? 'Solve to shoot your opponent.' : '';
 
   if (nextProblemIndex !== lastProblemIndex || penaltyActive !== lastPenaltyState || challengeActive !== lastChallengeState) {
     answerInput.value = '';
@@ -233,28 +233,71 @@ function renderWheel(room) {
 
   if (wheel.id !== lastWheelId) {
     lastWheelId = wheel.id;
-    wheelSpinner.style.animation = 'none';
-    wheelSpinner.offsetHeight;
-    wheelSpinner.style.animation = '';
   }
 
   const weightsText = wheel.weights.map((item) => `${escapeHtml(item.name)}:${item.weight}`).join(' · ');
-  wheelSpinner.innerHTML = wheel.weights.map((item) => `<span>${escapeHtml(item.name)}</span>`).join('');
+  const totalWeight = wheel.weights.reduce((sum, item) => sum + item.weight, 0) || 1;
+  let offset = 0;
+  wheelSpinner.innerHTML = '';
 
-  if (wheel.skipped) {
-    wheelText.textContent = `20s wheel check: no solved problems this cycle. No shot. (${weightsText})`;
-    return;
-  }
+  wheel.weights.forEach((item) => {
+    const width = (item.weight / totalWeight) * 100;
+    const segment = document.createElement('div');
+    segment.className = 'wheel-segment';
+    segment.style.left = `${offset}%`;
+    segment.style.width = `${width}%`;
+    segment.textContent = `${item.name} (${item.weight})`;
+    wheelSpinner.appendChild(segment);
+    offset += width;
+  });
 
   const spinning = getServerNow() < wheel.endsAt;
-  if (spinning) {
-    wheelText.textContent = `Wheel spinning... (${weightsText})`;
-    return;
+  const targetNeedle = createNeedle(wheel, totalWeight, spinning);
+  if (targetNeedle) {
+    wheelSpinner.appendChild(targetNeedle);
   }
 
-  wheelText.textContent = wheel.isTarget
-    ? `Wheel landed on you. Waiting for ${wheel.finalizerName} to solve the negative shot problem.`
-    : `Wheel landed on ${wheel.targetName}. Solve the negative problem to fire.`;
+  if (wheel.skipped) {
+    wheelText.textContent = `Wheel check: no solved problems this cycle. No shot. (${weightsText})`;
+  } else if (spinning) {
+    wheelText.textContent = `Wheel spinning... (${weightsText})`;
+  } else {
+    wheelText.textContent = wheel.isTarget
+      ? `Wheel landed on you. Waiting for ${wheel.finalizerName}.`
+      : `Wheel landed on ${wheel.targetName}. Solve to shoot.`;
+  }
+}
+
+function createNeedle(wheel, totalWeight, spinning) {
+  if (wheel.skipped || !wheel.weights.length) {
+    return null;
+  }
+
+  const needle = document.createElement('div');
+  needle.className = 'wheel-needle';
+
+  const targetId = wheel.targetId;
+  let cursor = 0;
+  let targetLeft = 0;
+
+  wheel.weights.forEach((item) => {
+    const width = (item.weight / totalWeight) * 100;
+    if (item.id === targetId) {
+      targetLeft = cursor + width / 2;
+    }
+    cursor += width;
+  });
+
+  needle.style.setProperty('--needle-left', `${targetLeft}%`);
+
+  if (spinning) {
+    needle.classList.add('animate');
+    void needle.offsetWidth;
+  } else {
+    needle.style.left = `${targetLeft}%`;
+  }
+
+  return needle;
 }
 
 function renderShot(room) {
