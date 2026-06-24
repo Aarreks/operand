@@ -282,9 +282,8 @@ function renderWheel(room) {
   } else if (spinningNow) {
     wheelText.textContent = `Wheel spinning... (${weightsText})`;
   } else {
-    wheelText.textContent = wheel.isTarget
-      ? `Wheel landed on you. Waiting for ${wheel.finalizerName}.`
-      : `Wheel landed on ${wheel.targetName}. Solve to shoot.`;
+    const targetName = wheel.targetName || 'Someone';
+    wheelText.textContent = `${targetName} is getting popped.`;
   }
 }
 

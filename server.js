@@ -12,6 +12,8 @@ const MAX_PLAYERS = 2;
 const SHOT_MARK_SECONDS = [20, 40, 60, 80, 100];
 const WHEEL_SPIN_MS = 1200;
 const SHOT_EVENT_MS = 2500;
+const WHEEL_MIN_WEIGHT = 25;
+const WHEEL_MIN_REMAINING_SECONDS = 15;
 const INSTANCE_ID = process.env.FLY_MACHINE_ID || `local-${process.pid}`;
 
 const app = express();
@@ -248,32 +250,16 @@ function triggerShotCycle(room, markSeconds) {
     weight: player.cycleWeight
   }));
   const totalWeight = weights.reduce((sum, item) => sum + item.weight, 0);
-
-  players.forEach((player) => {
-    player.cycleWeight = 0;
-  });
-
-  if (totalWeight <= 0) {
-    room.wheel = {
-      id: `${Date.now()}-${markSeconds}-skip`,
-      skipped: true,
-      markSeconds,
-      weights,
-      startedAt: Date.now(),
-      endsAt: Date.now() + 1200
-    };
-    emitRoom(room);
-    setTimeout(() => {
-      if (room.wheel?.id?.endsWith('-skip')) {
-        room.wheel = null;
-        emitRoom(room);
-      }
-    }, 1200);
+  const remainingSeconds = Math.ceil((room.endsAt - Date.now()) / 1000);
+  if (totalWeight < WHEEL_MIN_WEIGHT || remainingSeconds < WHEEL_MIN_REMAINING_SECONDS) {
     return;
   }
 
   const target = pickWeightedPlayer(room.rng, players, weights, totalWeight);
   const finalizer = players.find((player) => player.id !== target.id);
+  if (!finalizer) {
+    return;
+  }
   const challenge = makeNegativeProblem(room.rng);
   const wheelEndsAt = Date.now() + WHEEL_SPIN_MS;
   finalizer.shotChallenge = {
@@ -294,6 +280,10 @@ function triggerShotCycle(room, markSeconds) {
     startedAt: Date.now(),
     endsAt: wheelEndsAt
   };
+
+  players.forEach((player) => {
+    player.cycleWeight = 0;
+  });
   emitRoom(room);
 }
 
