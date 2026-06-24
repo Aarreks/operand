@@ -228,44 +228,80 @@ function renderWheel(room) {
   if (!wheel) {
     wheelText.textContent = '';
     wheelSpinner.innerHTML = '';
+    lastWheelId = null;
     return;
   }
 
-  if (wheel.id !== lastWheelId) {
+  const isNewWheel = wheel.id !== lastWheelId;
+  if (isNewWheel) {
     lastWheelId = wheel.id;
+    wheelSpinner.innerHTML = '';
   }
 
   const weightsText = wheel.weights.map((item) => `${escapeHtml(item.name)}:${item.weight}`).join(' · ');
   const totalWeight = wheel.weights.reduce((sum, item) => sum + item.weight, 0) || 1;
-  let offset = 0;
-  wheelSpinner.innerHTML = '';
 
-  wheel.weights.forEach((item) => {
-    const width = (item.weight / totalWeight) * 100;
-    const segment = document.createElement('div');
-    segment.className = 'wheel-segment';
-    segment.style.left = `${offset}%`;
-    segment.style.width = `${width}%`;
-    segment.textContent = `${item.name} (${item.weight})`;
-    wheelSpinner.appendChild(segment);
-    offset += width;
-  });
+  if (isNewWheel) {
+    let offset = 0;
+    wheel.weights.forEach((item) => {
+      const width = (item.weight / totalWeight) * 100;
+      const segment = document.createElement('div');
+      segment.className = 'wheel-segment';
+      segment.style.left = `${offset}%`;
+      segment.style.width = `${width}%`;
+      segment.textContent = `${item.name} (${item.weight})`;
+      wheelSpinner.appendChild(segment);
+      offset += width;
+    });
 
-  const spinning = getServerNow() < wheel.endsAt;
-  const targetNeedle = createNeedle(wheel, totalWeight, spinning);
-  if (targetNeedle) {
-    wheelSpinner.appendChild(targetNeedle);
+    const initialNeedle = createNeedle(wheel, totalWeight, getServerNow() < wheel.endsAt);
+    if (initialNeedle) {
+      wheelSpinner.appendChild(initialNeedle);
+    }
+  } else {
+    const spinning = getServerNow() < wheel.endsAt;
+    const needle = wheelSpinner.querySelector('.wheel-needle');
+    const targetPercent = getNeedlePercent(wheel, totalWeight);
+    if (needle) {
+      if (spinning) {
+        if (!needle.classList.contains('animate')) {
+          needle.classList.add('animate');
+          void needle.offsetWidth;
+        }
+      } else {
+        needle.classList.remove('animate');
+        needle.style.left = `${targetPercent}%`;
+      }
+      needle.style.setProperty('--needle-left', `${targetPercent}%`);
+    }
   }
 
+  const spinningNow = getServerNow() < wheel.endsAt;
   if (wheel.skipped) {
     wheelText.textContent = `Wheel check: no solved problems this cycle. No shot. (${weightsText})`;
-  } else if (spinning) {
+  } else if (spinningNow) {
     wheelText.textContent = `Wheel spinning... (${weightsText})`;
   } else {
     wheelText.textContent = wheel.isTarget
       ? `Wheel landed on you. Waiting for ${wheel.finalizerName}.`
       : `Wheel landed on ${wheel.targetName}. Solve to shoot.`;
   }
+}
+
+function getNeedlePercent(wheel, totalWeight) {
+  const targetId = wheel.targetId;
+  let cursor = 0;
+  let targetLeft = 0;
+
+  wheel.weights.forEach((item) => {
+    const width = (item.weight / totalWeight) * 100;
+    if (item.id === targetId) {
+      targetLeft = cursor + width / 2;
+    }
+    cursor += width;
+  });
+
+  return targetLeft;
 }
 
 function createNeedle(wheel, totalWeight, spinning) {
