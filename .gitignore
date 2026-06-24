@@ -1,0 +1,4 @@
+node_modules/
+.env
+.server-harness-*.mjs
+.DS_Store

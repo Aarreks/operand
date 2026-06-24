@@ -1,0 +1,19 @@
+{
+  "name": "operand",
+  "version": "1.0.0",
+  "description": "A 1v1 live arithmetic race.",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node --check server.js && node --check public/client.js && node scripts/smoke-game.mjs"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
