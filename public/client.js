@@ -34,6 +34,7 @@ let lastPenaltyState = false;
 let lastChallengeState = false;
 let lastShotId = null;
 let lastWheelId = null;
+let wheelAnimation = null;
 
 const shotAudio = new Audio('/shot.mp3');
 shotAudio.preload = 'auto';
@@ -228,76 +229,57 @@ function renderWheel(room) {
   if (!wheel) {
     wheelText.textContent = '';
     wheelSpinner.innerHTML = '';
+    clearWheelAnimation();
+    lastWheelId = null;
     return;
   }
 
-  if (wheel.id !== lastWheelId) {
+  const isNewWheel = wheel.id !== lastWheelId;
+  if (isNewWheel) {
     lastWheelId = wheel.id;
+    clearWheelAnimation();
+    wheelSpinner.innerHTML = '';
   }
 
+  const totalWeight = wheel.weights.reduce((sum, item) => sum + item.weight, 0);
   const weightsText = wheel.weights.map((item) => `${escapeHtml(item.name)}:${item.weight}`).join(' · ');
-  const totalWeight = wheel.weights.reduce((sum, item) => sum + item.weight, 0) || 1;
-  let offset = 0;
-  wheelSpinner.innerHTML = '';
 
-  wheel.weights.forEach((item) => {
-    const width = (item.weight / totalWeight) * 100;
-    const segment = document.createElement('div');
-    segment.className = 'wheel-segment';
-    segment.style.left = `${offset}%`;
-    segment.style.width = `${width}%`;
-    segment.textContent = `${item.name} (${item.weight})`;
-    wheelSpinner.appendChild(segment);
-    offset += width;
-  });
-
-  const spinning = getServerNow() < wheel.endsAt;
-  const targetNeedle = createNeedle(wheel, totalWeight, spinning);
-  if (targetNeedle) {
-    wheelSpinner.appendChild(targetNeedle);
+  if (totalWeight <= 0 || wheel.skipped) {
+    clearWheelAnimation();
+    wheelSpinner.innerHTML = '';
+    wheelText.textContent = `Wheel check: no solved problems this cycle. No shot. (${weightsText})`;
+    return;
   }
 
-  if (wheel.skipped) {
-    wheelText.textContent = `Wheel check: no solved problems this cycle. No shot. (${weightsText})`;
-  } else if (spinning) {
+  if (isNewWheel || !wheelSpinner.childElementCount) {
+    let offset = 0;
+    wheelSpinner.innerHTML = '';
+    wheel.weights.forEach((item) => {
+      const width = (item.weight / totalWeight) * 100;
+      const segment = document.createElement('div');
+      segment.className = 'wheel-segment';
+      segment.style.left = `${offset}%`;
+      segment.style.width = `${width}%`;
+      segment.textContent = `${item.name} (${item.weight})`;
+      wheelSpinner.appendChild(segment);
+      offset += width;
+    });
+  }
+
+  const targetPercent = getWheelTargetPercent(wheel, totalWeight);
+  const spinning = getServerNow() < wheel.endsAt;
+
+  if (spinning) {
+    if (!wheelAnimation || wheelAnimation.id !== wheel.id) {
+      startWheelAnimation(wheel, wheelSpinner, targetPercent);
+    }
     wheelText.textContent = `Wheel spinning... (${weightsText})`;
   } else {
+    showStaticNeedle(wheelSpinner, targetPercent);
     wheelText.textContent = wheel.isTarget
       ? `Wheel landed on you. Waiting for ${wheel.finalizerName}.`
       : `Wheel landed on ${wheel.targetName}. Solve to shoot.`;
   }
-}
-
-function createNeedle(wheel, totalWeight, spinning) {
-  if (wheel.skipped || !wheel.weights.length) {
-    return null;
-  }
-
-  const needle = document.createElement('div');
-  needle.className = 'wheel-needle';
-
-  const targetId = wheel.targetId;
-  let cursor = 0;
-  let targetLeft = 0;
-
-  wheel.weights.forEach((item) => {
-    const width = (item.weight / totalWeight) * 100;
-    if (item.id === targetId) {
-      targetLeft = cursor + width / 2;
-    }
-    cursor += width;
-  });
-
-  needle.style.setProperty('--needle-left', `${targetLeft}%`);
-
-  if (spinning) {
-    needle.classList.add('animate');
-    void needle.offsetWidth;
-  } else {
-    needle.style.left = `${targetLeft}%`;
-  }
-
-  return needle;
 }
 
 function renderShot(room) {
