@@ -430,7 +430,6 @@ function publicRoom(room, viewerId) {
     finishedReason: room.finishedReason,
     shot: publicShot(room.shot, viewerId),
     wheel: publicWheel(room.wheel, viewerId),
-    shotMarks: SHOT_MARK_SECONDS,
     players
   };
 }
