@@ -9,7 +9,6 @@ const __dirname = path.dirname(__filename);
 const PORT = process.env.PORT || 3000;
 const ROUND_SECONDS = 120;
 const MAX_PLAYERS = 2;
-const SHOT_MARK_SECONDS = [20, 40, 60, 80, 100];
 const WHEEL_SPIN_MS = 1200;
 const SHOT_EVENT_MS = 2500;
 const WHEEL_MIN_WEIGHT = 25;
@@ -230,7 +229,6 @@ function maybeStartRound(room) {
 
   clearRoomTimer(room);
   room.timer = setTimeout(() => finishRound(room, 'time'), ROUND_SECONDS * 1000);
-  room.shotTimers = SHOT_MARK_SECONDS.map((seconds) => setTimeout(() => triggerShotCycle(room, seconds), seconds * 1000));
   emitRoom(room);
 }
 
@@ -253,23 +251,6 @@ function triggerShotCycle(room, markSeconds = 'live') {
   const remainingSeconds = Math.ceil((room.endsAt - Date.now()) / 1000);
   const meetsRequirements = totalWeight >= WHEEL_MIN_WEIGHT && remainingSeconds >= WHEEL_MIN_REMAINING_SECONDS;
   if (!meetsRequirements) {
-    if (markSeconds !== 'live') {
-      room.wheel = {
-        id: `${Date.now()}-${markSeconds}-skip`,
-        skipped: true,
-        markSeconds,
-        weights,
-        startedAt: Date.now(),
-        endsAt: Date.now() + 1200
-      };
-      emitRoom(room);
-      setTimeout(() => {
-        if (room.wheel?.id?.endsWith('-skip')) {
-          room.wheel = null;
-          emitRoom(room);
-        }
-      }, 1200);
-    }
     return;
   }
 
