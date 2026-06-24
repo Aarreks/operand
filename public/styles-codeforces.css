@@ -327,23 +327,19 @@ label {
 
 @keyframes wheel-needle {
   0% {
-    left: 0;
+    left: -5%;
   }
 
-  35% {
-    left: 100%;
+  25% {
+    left: 105%;
   }
 
-  45% {
-    left: 0;
+  50% {
+    left: -5%;
   }
 
-  65% {
-    left: 100%;
-  }
-
-  85% {
-    left: 0;
+  75% {
+    left: 105%;
   }
 
   100% {
