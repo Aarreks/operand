@@ -329,9 +329,6 @@ function startTicker(room) {
   const tick = () => {
     const remaining = Math.max(0, Math.ceil((room.endsAt - getServerNow()) / 1000));
     timer.textContent = String(remaining);
-    if (currentRoom) {
-      renderWheel(currentRoom);
-    }
   };
 
   tick();
