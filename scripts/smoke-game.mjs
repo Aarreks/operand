@@ -9,10 +9,10 @@ const source = await fs.readFile(serverPath, 'utf8');
 const harnessPath = path.join(projectRoot, `.server-harness-${process.pid}-${Date.now()}.mjs`);
 const harnessSource = source
   .replace(/server\.listen\([\s\S]*?\n\}\);/, '')
-  .concat('\nexport { makeRoom, makePlayer, getProblem, makePenaltyProblem, advancePlayer, isLosing };\n');
+  .concat('\nexport { makeRoom, makePlayer, getProblem, makePenaltyProblem, makeNegativeProblem, advancePlayer, isLosing };\n');
 
 await fs.writeFile(harnessPath, harnessSource);
-const { makeRoom, makePlayer, getProblem, makePenaltyProblem, advancePlayer, isLosing } = await import(pathToFileURL(harnessPath).href);
+const { makeRoom, makePlayer, getProblem, makePenaltyProblem, makeNegativeProblem, advancePlayer, isLosing } = await import(pathToFileURL(harnessPath).href);
 
 const room = makeRoom('smoke');
 const player = makePlayer('p1', 'Ada', room);
@@ -51,6 +51,12 @@ assert.ok(Number(penaltyLeft) >= 1000 && Number(penaltyLeft) <= 9999);
 assert.ok(Number(penaltyRight) >= 1000 && Number(penaltyRight) <= 9999);
 assert.equal(penalty.answer, Number(penaltyLeft) + Number(penaltyRight));
 assert.equal(penalty.penalty, true);
+
+const negative = makeNegativeProblem(room.rng);
+const [negativeLeft, , negativeRight] = negative.text.split(' ');
+assert.equal(negative.answer, Number(negativeLeft) - Number(negativeRight));
+assert.ok(negative.answer < 0);
+assert.equal(negative.challenge, true);
 
 player.score = 7;
 player.problemIndex = 7;

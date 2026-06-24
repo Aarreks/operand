@@ -1,4 +1,4 @@
-const socket = io();
+﻿const socket = io();
 
 const setup = document.querySelector('#setup');
 const lobby = document.querySelector('#lobby');
@@ -10,7 +10,6 @@ const createButton = document.querySelector('#createButton');
 const copyButton = document.querySelector('#copyButton');
 const readyButton = document.querySelector('#readyButton');
 const leaveButton = document.querySelector('#leaveButton');
-const shootButton = document.querySelector('#shootButton');
 const answerForm = document.querySelector('#answerForm');
 const answerInput = document.querySelector('#answerInput');
 const roomCode = document.querySelector('#roomCode');
@@ -20,6 +19,10 @@ const players = document.querySelector('#players');
 const scoreboard = document.querySelector('#scoreboard');
 const problem = document.querySelector('#problem');
 const shotBanner = document.querySelector('#shotBanner');
+const wheelBox = document.querySelector('#wheelBox');
+const wheelSpinner = document.querySelector('#wheelSpinner');
+const wheelText = document.querySelector('#wheelText');
+const challengeBox = document.querySelector('#challengeBox');
 const timer = document.querySelector('#timer');
 const timerLabel = document.querySelector('#timerLabel');
 
@@ -28,7 +31,12 @@ let ticker = null;
 let serverClockOffset = 0;
 let lastProblemIndex = null;
 let lastPenaltyState = false;
+let lastChallengeState = false;
 let lastShotId = null;
+let lastWheelId = null;
+
+const shotAudio = new Audio('/shot.mp3');
+shotAudio.preload = 'auto';
 
 const savedName = localStorage.getItem('live-zetamac:name');
 if (savedName) {
@@ -38,6 +46,7 @@ if (savedName) {
 const pathRoom = getRoomFromPath();
 if (pathRoom) {
   roomInput.value = pathRoom;
+  nameInput.focus();
 }
 updateCreateVisibility();
 
@@ -77,7 +86,9 @@ leaveButton.addEventListener('click', () => {
     currentRoom = null;
     lastProblemIndex = null;
     lastPenaltyState = false;
+    lastChallengeState = false;
     lastShotId = null;
+    lastWheelId = null;
     history.replaceState(null, '', '/');
     setup.classList.remove('hidden');
     lobby.classList.add('hidden');
@@ -85,21 +96,6 @@ leaveButton.addEventListener('click', () => {
     roomInput.value = '';
     updateCreateVisibility();
   });
-});
-
-shootButton.addEventListener('click', () => {
-  unlockShotSound();
-  socket.emit('game:shoot', showErrorAck);
-});
-
-window.addEventListener('keydown', (event) => {
-  if (event.key.toLowerCase() !== 'x' || shootButton.classList.contains('hidden')) {
-    return;
-  }
-
-  event.preventDefault();
-  unlockShotSound();
-  socket.emit('game:shoot', showErrorAck);
 });
 
 answerForm.addEventListener('submit', (event) => event.preventDefault());
@@ -124,10 +120,6 @@ socket.on('connect_error', () => {
   stateTitle.textContent = 'Connection lost. Refresh and rejoin the room.';
 });
 
-if (pathRoom) {
-  socket.emit('room:join', { roomId: pathRoom, name: nameInput.value }, handleJoinAck);
-}
-
 function handleJoinAck(response) {
   if (!response?.ok) {
     alert(response?.error || 'Unable to join room.');
@@ -150,7 +142,7 @@ function renderRoom(room) {
   renderScoreboard(room);
   renderState(room);
   renderProblem(room);
-  renderShoot(room);
+  renderWheel(room);
   renderShot(room);
   startTicker(room);
 }
@@ -166,7 +158,7 @@ function renderPlayers(room) {
       return `<article class="player-card"><p class="player-name muted">Waiting for player ${index + 1}</p><span class="status-pill waiting-pill">Invite sent</span></article>`;
     }
 
-    const readyText = player.ready ? 'Ready' : room.state === 'playing' ? 'Racing' : 'Not ready';
+    const readyText = player.ready ? 'Ready' : room.state === 'playing' ? `Racing · wheel ${player.cycleWeight}` : 'Not ready';
     const readyClass = player.ready || room.state === 'playing' ? '' : ' waiting-pill';
     return `<article class="player-card ${player.isYou ? 'you' : ''}"><p class="player-name">${escapeHtml(player.name)} ${player.isYou ? '(you)' : ''}</p><span class="status-pill${readyClass}">${readyText}</span></article>`;
   }).join('');
@@ -174,7 +166,7 @@ function renderPlayers(room) {
 
 function renderScoreboard(room) {
   scoreboard.innerHTML = room.players.map((player) => {
-    return `<article class="score-card ${player.isYou ? 'you' : ''}"><p class="player-name">${escapeHtml(player.name)}</p><p class="score-value">${player.score}</p></article>`;
+    return `<article class="score-card ${player.isYou ? 'you' : ''}"><p class="player-name">${escapeHtml(player.name)}</p><p class="score-value">${player.score}</p><p class="muted">Wheel weight: ${player.cycleWeight}</p></article>`;
   }).join('');
 }
 
@@ -206,13 +198,18 @@ function renderProblem(room) {
   const you = room.players.find((player) => player.isYou);
   const nextProblemIndex = you?.problemIndex ?? null;
   const penaltyActive = Boolean(you?.problem?.penalty);
-  problem.textContent = you?.problem?.text || '--';
+  const challengeActive = Boolean(you?.shotChallenge);
+  problem.textContent = challengeActive ? you.shotChallenge.text : you?.problem?.text || '--';
   problem.classList.toggle('penalty-problem', penaltyActive);
+  problem.classList.toggle('challenge-problem', challengeActive);
+  challengeBox.classList.toggle('hidden', !challengeActive);
+  challengeBox.textContent = challengeActive ? 'Shot finalizer: answer this negative problem here to fire the shot. It scores 1 point.' : '';
 
-  if (nextProblemIndex !== lastProblemIndex || penaltyActive !== lastPenaltyState) {
+  if (nextProblemIndex !== lastProblemIndex || penaltyActive !== lastPenaltyState || challengeActive !== lastChallengeState) {
     answerInput.value = '';
     lastProblemIndex = nextProblemIndex;
     lastPenaltyState = penaltyActive;
+    lastChallengeState = challengeActive;
   }
 
   if (room.state === 'playing') {
@@ -224,10 +221,40 @@ function renderProblem(room) {
   answerInput.disabled = true;
 }
 
-function renderShoot(room) {
-  const you = room.players.find((player) => player.isYou);
-  const onCooldown = room.nextShotAt && room.nextShotAt > getServerNow();
-  shootButton.classList.toggle('hidden', room.state !== 'playing' || !you?.canShoot || onCooldown);
+function renderWheel(room) {
+  const wheel = room.wheel;
+  wheelBox.classList.toggle('hidden', !wheel);
+
+  if (!wheel) {
+    wheelText.textContent = '';
+    wheelSpinner.innerHTML = '';
+    return;
+  }
+
+  if (wheel.id !== lastWheelId) {
+    lastWheelId = wheel.id;
+    wheelSpinner.style.animation = 'none';
+    wheelSpinner.offsetHeight;
+    wheelSpinner.style.animation = '';
+  }
+
+  const weightsText = wheel.weights.map((item) => `${escapeHtml(item.name)}:${item.weight}`).join(' · ');
+  wheelSpinner.innerHTML = wheel.weights.map((item) => `<span>${escapeHtml(item.name)}</span>`).join('');
+
+  if (wheel.skipped) {
+    wheelText.textContent = `20s wheel check: no solved problems this cycle. No shot. (${weightsText})`;
+    return;
+  }
+
+  const spinning = getServerNow() < wheel.endsAt;
+  if (spinning) {
+    wheelText.textContent = `Wheel spinning... (${weightsText})`;
+    return;
+  }
+
+  wheelText.textContent = wheel.isTarget
+    ? `Wheel landed on you. Waiting for ${wheel.finalizerName} to solve the negative shot problem.`
+    : `Wheel landed on ${wheel.targetName}. Solve the negative problem to fire.`;
 }
 
 function renderShot(room) {
@@ -240,8 +267,8 @@ function renderShot(room) {
   }
 
   shotBanner.textContent = shot.isTarget
-    ? `${shot.shooterName} shot your problem. Clear the red one to continue.`
-    : `${shot.shooterName} shot ${shot.targetName}.`;
+    ? `${shot.finalizerName} shot your problem. Clear the red one to continue.`
+    : `${shot.finalizerName} shot ${shot.targetName}.`;
 
   if (shot.id !== lastShotId) {
     lastShotId = shot.id;
@@ -259,6 +286,9 @@ function startTicker(room) {
   const tick = () => {
     const remaining = Math.max(0, Math.ceil((room.endsAt - getServerNow()) / 1000));
     timer.textContent = String(remaining);
+    if (currentRoom) {
+      renderWheel(currentRoom);
+    }
   };
 
   tick();
@@ -293,14 +323,22 @@ function updateCreateVisibility() {
 }
 
 function unlockShotSound() {
-  const audio = new Audio('/shot.mp3');
-  audio.volume = 0;
-  audio.play().catch(() => {});
+  shotAudio.volume = 0;
+  shotAudio.currentTime = 0;
+  shotAudio.play().then(() => {
+    shotAudio.pause();
+    shotAudio.currentTime = 0;
+    shotAudio.volume = 1;
+  }).catch(() => {
+    shotAudio.volume = 1;
+  });
 }
 
 function playGunshot() {
-  const audio = new Audio('/shot.mp3');
-  audio.play().catch(() => {});
+  shotAudio.pause();
+  shotAudio.currentTime = 0;
+  shotAudio.volume = 1;
+  shotAudio.play().catch(() => {});
 }
 
 function makeInviteUrl(roomId) {

@@ -1,4 +1,4 @@
-import express from 'express';
+﻿import express from 'express';
 import { createServer } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -9,9 +9,9 @@ const __dirname = path.dirname(__filename);
 const PORT = process.env.PORT || 3000;
 const ROUND_SECONDS = 120;
 const MAX_PLAYERS = 2;
-const SHOOT_INTERVAL = 5;
+const SHOT_MARK_SECONDS = [20, 40, 60, 80, 100];
+const WHEEL_SPIN_MS = 1200;
 const SHOT_EVENT_MS = 2500;
-const SHOT_COOLDOWN_MS = 15000;
 const INSTANCE_ID = process.env.FLY_MACHINE_ID || `local-${process.pid}`;
 
 const app = express();
@@ -81,71 +81,30 @@ io.on('connection', (socket) => {
     }
 
     const numericAnswer = Number(answer);
-    const problem = player.problem;
-
-    if (!Number.isFinite(numericAnswer) || !problem) {
+    if (!Number.isFinite(numericAnswer)) {
       ack?.({ ok: true });
       return;
     }
 
-    if (numericAnswer !== problem.answer) {
+    if (player.shotChallenge) {
+      if (Date.now() < player.shotChallenge.readyAt || numericAnswer !== player.shotChallenge.problem.answer) {
+        ack?.({ ok: true });
+        return;
+      }
+
+      completeShotChallenge(room, player);
+      emitRoom(room);
+      ack?.({ ok: true });
+      return;
+    }
+
+    const problem = player.problem;
+    if (!problem || numericAnswer !== problem.answer) {
       ack?.({ ok: true });
       return;
     }
 
     advancePlayer(room, player);
-    emitRoom(room);
-    ack?.({ ok: true });
-  });
-
-  socket.on('game:shoot', (ack) => {
-    const room = getSocketRoom(socket);
-    const shooter = room?.players.get(socket.id);
-
-    if (!room || !shooter || room.state !== 'playing') {
-      ack?.({ ok: false, error: 'No active game.' });
-      return;
-    }
-
-    const target = getOpponent(room, shooter.id);
-    if (!target) {
-      ack?.({ ok: false, error: 'No opponent to shoot.' });
-      return;
-    }
-
-    if (!shooter.shootAvailable || !isLosing(shooter, target)) {
-      ack?.({ ok: false, error: 'Shoot is only available to the losing player.' });
-      return;
-    }
-
-    if (Date.now() < room.nextShotAt) {
-      ack?.({ ok: false, error: 'Shoot is on cooldown.' });
-      return;
-    }
-
-    shooter.shootAvailable = false;
-    shooter.nextShootScore = shooter.score + SHOOT_INTERVAL;
-    room.nextShotAt = Date.now() + SHOT_COOLDOWN_MS;
-    target.penaltyReturnProblem = target.penaltyReturnProblem || target.problem;
-    target.problem = makePenaltyProblem(room.rng);
-    target.penaltyActive = true;
-    room.shot = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      shooterId: shooter.id,
-      targetId: target.id,
-      shooterName: shooter.name,
-      targetName: target.name,
-      expiresAt: Date.now() + SHOT_EVENT_MS
-    };
-
-    const shotId = room.shot.id;
-    setTimeout(() => {
-      if (room.shot?.id === shotId) {
-        room.shot = null;
-        emitRoom(room);
-      }
-    }, SHOT_EVENT_MS);
-
     emitRoom(room);
     ack?.({ ok: true });
   });
@@ -232,6 +191,7 @@ function leaveRoom(socket, disconnected = false) {
 
   if (room.state === 'playing' || room.state === 'finished') {
     room.shot = null;
+    room.wheel = null;
     finishRound(room, disconnected ? 'opponent_left' : 'opponent_left');
     return;
   }
@@ -252,22 +212,143 @@ function maybeStartRound(room) {
   room.state = 'playing';
   room.startedAt = Date.now();
   room.endsAt = room.startedAt + ROUND_SECONDS * 1000;
-  room.nextShotAt = 0;
+  room.shot = null;
+  room.wheel = null;
 
   players.forEach((player) => {
     player.score = 0;
     player.problemIndex = 0;
     player.ready = false;
-    player.shootAvailable = false;
-    player.nextShootScore = SHOOT_INTERVAL;
+    player.cycleWeight = 0;
     player.penaltyActive = false;
     player.penaltyReturnProblem = null;
+    player.shotChallenge = null;
     player.problem = getProblem(room, 0);
   });
 
   clearRoomTimer(room);
   room.timer = setTimeout(() => finishRound(room, 'time'), ROUND_SECONDS * 1000);
+  room.shotTimers = SHOT_MARK_SECONDS.map((seconds) => setTimeout(() => triggerShotCycle(room, seconds), seconds * 1000));
   emitRoom(room);
+}
+
+function triggerShotCycle(room, markSeconds) {
+  if (room.state !== 'playing' || room.wheel) {
+    return;
+  }
+
+  const players = [...room.players.values()];
+  if (players.length !== MAX_PLAYERS) {
+    return;
+  }
+
+  const weights = players.map((player) => ({
+    id: player.id,
+    name: player.name,
+    weight: player.cycleWeight
+  }));
+  const totalWeight = weights.reduce((sum, item) => sum + item.weight, 0);
+
+  players.forEach((player) => {
+    player.cycleWeight = 0;
+  });
+
+  if (totalWeight <= 0) {
+    room.wheel = {
+      id: `${Date.now()}-${markSeconds}-skip`,
+      skipped: true,
+      markSeconds,
+      weights,
+      startedAt: Date.now(),
+      endsAt: Date.now() + 1200
+    };
+    emitRoom(room);
+    setTimeout(() => {
+      if (room.wheel?.id?.endsWith('-skip')) {
+        room.wheel = null;
+        emitRoom(room);
+      }
+    }, 1200);
+    return;
+  }
+
+  const target = pickWeightedPlayer(room.rng, players, weights, totalWeight);
+  const finalizer = players.find((player) => player.id !== target.id);
+  const challenge = makeNegativeProblem(room.rng);
+  const wheelEndsAt = Date.now() + WHEEL_SPIN_MS;
+  finalizer.shotChallenge = {
+    targetId: target.id,
+    problem: challenge,
+    readyAt: wheelEndsAt
+  };
+
+  room.wheel = {
+    id: `${Date.now()}-${markSeconds}`,
+    skipped: false,
+    markSeconds,
+    weights,
+    targetId: target.id,
+    finalizerId: finalizer.id,
+    targetName: target.name,
+    finalizerName: finalizer.name,
+    startedAt: Date.now(),
+    endsAt: wheelEndsAt
+  };
+  emitRoom(room);
+}
+
+function pickWeightedPlayer(rng, players, weights, totalWeight) {
+  let roll = randomInt(rng, 1, totalWeight);
+  for (const player of players) {
+    const weight = weights.find((item) => item.id === player.id)?.weight || 0;
+    roll -= weight;
+    if (roll <= 0) {
+      return player;
+    }
+  }
+
+  return players[players.length - 1];
+}
+
+function completeShotChallenge(room, finalizer) {
+  const challenge = finalizer.shotChallenge;
+  if (!challenge) {
+    return;
+  }
+
+  finalizer.shotChallenge = null;
+  finalizer.problemIndex += 1;
+  finalizer.score = finalizer.problemIndex;
+  addCycleWeight(room, finalizer);
+  finalizer.problem = getProblem(room, finalizer.problemIndex);
+
+  const target = room.players.get(challenge.targetId);
+  if (!target) {
+    room.wheel = null;
+    return;
+  }
+
+  target.penaltyReturnProblem = target.penaltyReturnProblem || target.problem;
+  target.problem = makePenaltyProblem(room.rng);
+  target.penaltyActive = true;
+
+  room.shot = {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    targetId: target.id,
+    targetName: target.name,
+    finalizerId: finalizer.id,
+    finalizerName: finalizer.name,
+    expiresAt: Date.now() + SHOT_EVENT_MS
+  };
+  room.wheel = null;
+
+  const shotId = room.shot.id;
+  setTimeout(() => {
+    if (room.shot?.id === shotId) {
+      room.shot = null;
+      emitRoom(room);
+    }
+  }, SHOT_EVENT_MS);
 }
 
 function advancePlayer(room, player) {
@@ -280,11 +361,13 @@ function advancePlayer(room, player) {
 
   player.problemIndex += 1;
   player.score = player.problemIndex;
+  addCycleWeight(room, player);
   player.problem = getProblem(room, player.problemIndex);
+}
 
-  if (player.score >= player.nextShootScore) {
-    player.shootAvailable = true;
-  }
+function addCycleWeight(room, player) {
+  const opponent = getOpponent(room, player.id);
+  player.cycleWeight += opponent && player.score > opponent.score ? 3 : 1;
 }
 
 function finishRound(room, reason) {
@@ -292,11 +375,15 @@ function finishRound(room, reason) {
   room.state = 'finished';
   room.finishedReason = reason;
   room.endsAt = Date.now();
+  room.shot = null;
+  room.wheel = null;
   room.players.forEach((player) => {
     player.ready = false;
     player.problem = null;
     player.penaltyActive = false;
     player.penaltyReturnProblem = null;
+    player.shotChallenge = null;
+    player.cycleWeight = 0;
   });
   emitRoom(room);
 }
@@ -308,7 +395,7 @@ function resetRoom(room) {
   room.endsAt = null;
   room.finishedReason = null;
   room.shot = null;
-  room.nextShotAt = 0;
+  room.wheel = null;
   room.seed = Math.floor(Math.random() * 2 ** 32);
   room.rng = mulberry32(room.seed);
   room.problemSet = makeProblemSet(room.rng);
@@ -316,10 +403,10 @@ function resetRoom(room) {
     player.score = 0;
     player.problemIndex = 0;
     player.ready = false;
-    player.shootAvailable = false;
-    player.nextShootScore = SHOOT_INTERVAL;
+    player.cycleWeight = 0;
     player.penaltyActive = false;
     player.penaltyReturnProblem = null;
+    player.shotChallenge = null;
     player.problem = getProblem(room, 0);
   });
 }
@@ -337,9 +424,10 @@ function publicRoom(room, viewerId) {
     score: player.score,
     problemIndex: player.problemIndex,
     ready: player.ready,
-    canShoot: player.id === viewerId && room.state === 'playing' && player.shootAvailable && isLosing(player, getOpponent(room, player.id)),
+    cycleWeight: player.cycleWeight,
     isYou: player.id === viewerId,
-    problem: player.id === viewerId ? publicProblem(player.problem) : null
+    problem: player.id === viewerId ? publicProblem(player.problem) : null,
+    shotChallenge: player.id === viewerId && player.shotChallenge ? publicProblem(player.shotChallenge.problem) : null
   }));
 
   return {
@@ -351,7 +439,8 @@ function publicRoom(room, viewerId) {
     endsAt: room.endsAt,
     finishedReason: room.finishedReason,
     shot: publicShot(room.shot, viewerId),
-    nextShotAt: room.nextShotAt,
+    wheel: publicWheel(room.wheel, viewerId),
+    shotMarks: SHOT_MARK_SECONDS,
     players
   };
 }
@@ -363,11 +452,31 @@ function publicShot(shot, viewerId) {
 
   return {
     id: shot.id,
-    shooterName: shot.shooterName,
     targetName: shot.targetName,
-    isShooter: shot.shooterId === viewerId,
+    finalizerName: shot.finalizerName,
     isTarget: shot.targetId === viewerId,
+    isFinalizer: shot.finalizerId === viewerId,
     expiresAt: shot.expiresAt
+  };
+}
+
+function publicWheel(wheel, viewerId) {
+  if (!wheel) {
+    return null;
+  }
+
+  return {
+    id: wheel.id,
+    skipped: wheel.skipped,
+    markSeconds: wheel.markSeconds,
+    weights: wheel.weights,
+    targetId: wheel.targetId,
+    targetName: wheel.targetName,
+    finalizerName: wheel.finalizerName,
+    isTarget: wheel.targetId === viewerId,
+    isFinalizer: wheel.finalizerId === viewerId,
+    startedAt: wheel.startedAt,
+    endsAt: wheel.endsAt
   };
 }
 
@@ -384,8 +493,9 @@ function makeRoom(roomId) {
     endsAt: null,
     finishedReason: null,
     shot: null,
-    nextShotAt: 0,
+    wheel: null,
     timer: null,
+    shotTimers: [],
     players: new Map()
   };
 }
@@ -397,10 +507,10 @@ function makePlayer(id, name, room) {
     score: 0,
     problemIndex: 0,
     ready: false,
-    shootAvailable: false,
-    nextShootScore: SHOOT_INTERVAL,
+    cycleWeight: 0,
     penaltyActive: false,
     penaltyReturnProblem: null,
+    shotChallenge: null,
     problem: getProblem(room, 0)
   };
 }
@@ -454,12 +564,23 @@ function makePenaltyProblem(rng) {
   };
 }
 
+function makeNegativeProblem(rng) {
+  const answer = -randomInt(rng, 2, 100);
+  const subtractor = randomInt(rng, 101, 199);
+  const start = answer + subtractor;
+  return {
+    text: `${start} - ${subtractor}`,
+    answer,
+    challenge: true
+  };
+}
+
 function publicProblem(problem) {
   if (!problem) {
     return null;
   }
 
-  return { text: problem.text, penalty: Boolean(problem.penalty) };
+  return { text: problem.text, penalty: Boolean(problem.penalty), challenge: Boolean(problem.challenge) };
 }
 
 function getOpponent(room, playerId) {
@@ -475,6 +596,9 @@ function clearRoomTimer(room) {
     clearTimeout(room.timer);
     room.timer = null;
   }
+
+  room.shotTimers.forEach((timer) => clearTimeout(timer));
+  room.shotTimers = [];
 }
 
 function getSocketRoom(socket) {

@@ -264,17 +264,57 @@ label {
   font-weight: bold;
 }
 
-.shoot-button {
-  display: block;
+.wheel-box {
   margin-bottom: 8px;
-  border-color: #aa0000;
-  color: #ffffff;
-  background: #cc0000;
+  border: 1px solid var(--light-border);
+  padding: 6px;
+  background: #fafafa;
+}
+
+.wheel-spinner {
+  display: flex;
+  max-width: 320px;
+  overflow: hidden;
+  border: 1px solid #cccccc;
+  background: #ffffff;
+  white-space: nowrap;
+  animation: wheel-spin 1.2s steps(10, end);
+}
+
+.wheel-spinner span {
+  min-width: 130px;
+  padding: 5px 8px;
+  text-align: center;
   font-weight: bold;
 }
 
-.shoot-button:hover {
-  background: #aa0000;
+.wheel-text {
+  margin-top: 5px;
+  color: #333333;
+}
+
+.challenge-box {
+  display: inline-block;
+  margin-bottom: 8px;
+  border: 1px solid #c0a000;
+  padding: 4px 6px;
+  color: #5f4c00;
+  background: #fff8d8;
+  font-weight: bold;
+}
+
+.challenge-problem {
+  color: #8a5a00;
+}
+
+@keyframes wheel-spin {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(-180px);
+  }
 }
 
 .answer-form {
