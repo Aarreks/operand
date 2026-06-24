@@ -300,7 +300,10 @@ label {
   height: calc(100% + 8px);
   background: var(--danger);
   transform: translateX(-50%);
-  pointer-events: none;
+}
+
+.wheel-needle.animate {
+  animation: wheel-needle 1.2s ease-out forwards;
 }
 
 .wheel-text {
@@ -322,6 +325,27 @@ label {
   color: #8a5a00;
 }
 
+@keyframes wheel-needle {
+  0% {
+    left: -5%;
+  }
+
+  25% {
+    left: 105%;
+  }
+
+  50% {
+    left: -5%;
+  }
+
+  75% {
+    left: 105%;
+  }
+
+  100% {
+    left: var(--needle-left, 0%);
+  }
+}
 
 .answer-form {
   display: block;
