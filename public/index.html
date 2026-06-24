@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Operand</title>
+    <link rel="stylesheet" href="/styles-codeforces.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero panel">
+        <h1><span class="brand-op">Op</span>erand</h1>
+        <div class="timer-card" aria-live="polite">
+          <span id="timerLabel">Waiting</span>
+          <strong id="timer">120</strong>
+        </div>
+      </section>
+
+      <section id="setup" class="panel setup-grid">
+        <div>
+          <h2>Start a race</h2>
+          <p>Pick a display name. Your room link updates automatically when you create or join.</p>
+        </div>
+        <form id="joinForm" class="form-stack">
+          <label>
+            Name
+            <input id="nameInput" name="name" autocomplete="name" maxlength="18" placeholder="Ada" />
+          </label>
+          <label>
+            Room code or invite link
+            <input id="roomInput" name="room" autocomplete="off" placeholder="Optional" />
+          </label>
+          <div class="button-row">
+            <button id="createButton" type="button" class="primary">Create invite</button>
+            <button type="submit" class="secondary">Join room</button>
+          </div>
+        </form>
+      </section>
+
+      <section id="lobby" class="panel hidden">
+        <div class="lobby-header">
+          <div class="lobby-title">
+            <p class="eyebrow">Room <span id="roomCode">-----</span></p>
+            <h2 id="stateTitle">Waiting for opponent</h2>
+          </div>
+          <button id="copyButton" class="secondary" type="button">Copy invite link</button>
+        </div>
+        <div class="invite-box" id="inviteLink"></div>
+        <div class="players" id="players"></div>
+        <div class="button-row">
+          <button id="readyButton" class="primary" type="button">Ready</button>
+          <button id="leaveButton" class="secondary" type="button">Leave room</button>
+        </div>
+      </section>
+
+      <section id="game" class="panel game hidden">
+        <div class="problem-wrap">
+          <p class="eyebrow">Solve this</p>
+          <div id="shotBanner" class="shot-banner hidden" aria-live="polite"></div>
+          <button id="shootButton" class="shoot-button hidden" type="button">[X] Shoot</button>
+          <div id="problem" class="problem">--</div>
+          <form id="answerForm" class="answer-form">
+            <input id="answerInput" inputmode="numeric" autocomplete="off" placeholder="Type answer" />
+          </form>
+        </div>
+        <div class="scoreboard" id="scoreboard"></div>
+      </section>
+
+      <details class="rules panel">
+        <summary>Rules</summary>
+        <ul>
+          <li>Race for 120 seconds.</li>
+          <li>Addition uses 2..100 + 2..100.</li>
+          <li>Subtraction, division, and multiplication use Zetamac-style default ranges.</li>
+          <li>The losing player periodically gets [X] Shoot.</li>
+          <li>A shot gives the opponent a red four-digit addition problem that does not score.</li>
+          <li>Shots have a 15-second cooldown.</li>
+        </ul>
+      </details>
+    </main>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/client.js"></script>
+  </body>
+</html>
