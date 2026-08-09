@@ -1,6 +1,6 @@
 ﻿import express from 'express';
 import { createServer } from 'node:http';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 import { Server } from 'socket.io';
 
@@ -17,11 +17,10 @@ const INSTANCE_ID = process.env.FLY_MACHINE_ID || `local-${process.pid}`;
 
 const app = express();
 const server = createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: process.env.CORS_ORIGIN || '*'
-  }
-});
+const socketOptions = process.env.CORS_ORIGIN
+  ? { cors: { origin: process.env.CORS_ORIGIN } }
+  : {};
+const io = new Server(server, socketOptions);
 
 const rooms = new Map();
 
@@ -40,12 +39,15 @@ app.get('/shot.mp3', (_req, res) => {
 });
 
 io.on('connection', (socket) => {
-  socket.on('room:create', ({ name }, ack) => {
+  socket.on('room:create', (payload, ack) => {
+    const name = payload?.name;
     const roomId = createRoomId();
     joinRoom(socket, roomId, name, ack);
   });
 
-  socket.on('room:join', ({ roomId, name }, ack) => {
+  socket.on('room:join', (payload, ack) => {
+    const roomId = payload?.roomId;
+    const name = payload?.name;
     joinRoom(socket, normalizeRoomId(roomId), name, ack);
   });
 
@@ -72,7 +74,8 @@ io.on('connection', (socket) => {
     ack?.({ ok: true, ready: player.ready });
   });
 
-  socket.on('answer:update', ({ answer }, ack) => {
+  socket.on('answer:update', (payload, ack) => {
+    const answer = payload?.answer;
     const room = getSocketRoom(socket);
     const player = room?.players.get(socket.id);
 
@@ -132,9 +135,11 @@ io.on('connection', (socket) => {
   });
 });
 
-server.listen(PORT, () => {
-  console.log(`Operand running on http://localhost:${PORT}`);
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  server.listen(PORT, () => {
+    console.log(`Operand running on http://localhost:${PORT}`);
+  });
+}
 
 function joinRoom(socket, roomId, name, ack) {
   if (!roomId) {
@@ -193,7 +198,7 @@ function leaveRoom(socket, disconnected = false) {
   if (room.state === 'playing' || room.state === 'finished') {
     room.shot = null;
     room.wheel = null;
-    finishRound(room, disconnected ? 'opponent_left' : 'opponent_left');
+    finishRound(room, 'opponent_left');
     return;
   }
 
@@ -332,12 +337,14 @@ function completeShotChallenge(room, finalizer) {
   room.wheel = null;
 
   const shotId = room.shot.id;
-  setTimeout(() => {
+  const shotTimer = setTimeout(() => {
+    room.shotTimers.delete(shotTimer);
     if (room.shot?.id === shotId) {
       room.shot = null;
       emitRoom(room);
     }
   }, SHOT_EVENT_MS);
+  room.shotTimers.add(shotTimer);
 }
 
 function advancePlayer(room, player) {
@@ -484,7 +491,7 @@ function makeRoom(roomId) {
     shot: null,
     wheel: null,
     timer: null,
-    shotTimers: [],
+    shotTimers: new Set(),
     players: new Map()
   };
 }
@@ -587,7 +594,7 @@ function clearRoomTimer(room) {
   }
 
   room.shotTimers.forEach((timer) => clearTimeout(timer));
-  room.shotTimers = [];
+  room.shotTimers.clear();
 }
 
 function getSocketRoom(socket) {
@@ -631,3 +638,19 @@ function mulberry32(seed) {
     return ((t ^ t >>> 14) >>> 0) / 4294967296;
   };
 }
+
+export {
+  advancePlayer,
+  cleanName,
+  createRoomId,
+  getProblem,
+  isLosing,
+  makeNegativeProblem,
+  makePenaltyProblem,
+  makePlayer,
+  makeRoom,
+  mulberry32,
+  normalizeRoomId,
+  randomInt,
+  server
+};
