@@ -10,8 +10,9 @@ Live site: https://operand.uk
 - Subtraction is addition in reverse, so results stay in `2..100`.
 - Multiplication uses `2..12 × 2..100`.
 - Division is multiplication in reverse, so answers stay in `2..100`.
-- The losing player periodically gets `[X] Shoot`. Shooting plays a metal-pipe sound for both players and forces the opponent to clear a red four-digit addition problem before continuing. The red problem does not add to score.
-- Gunshots have a 15-second room-wide cooldown.
+- Correct answers add wheel weight: 1 while tied or behind and 3 while ahead.
+- The weighted wheel spins once the combined weight reaches 25, provided at least 15 seconds remain.
+- The player not selected by the wheel solves a negative-answer challenge to finalize the shot and earn a point. The selected player then clears a red four-digit addition problem before continuing; that penalty problem does not add to score.
 
 ## Run locally
 
@@ -34,7 +35,7 @@ This app needs a Node process that supports WebSockets. Static-only hosts are no
 
 ## Cheap deployment
 
-The cheapest practical setup for immediate 1v1 play is Fly.io or Railway with one tiny always-on Node instance. Avoid static-only hosting and avoid free sleeping services if you want the second player to click the link and play immediately.
+Fly.io or Railway can host the required Node process. The included Fly configuration allows the machine to stop when idle; set `min_machines_running = 1` and disable auto-stop if instant joins matter more than idle cost.
 
 ### Fly.io
 

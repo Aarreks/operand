@@ -39,7 +39,7 @@ let wheelTextTimeout = null;
 const shotAudio = new Audio('/shot.mp3');
 shotAudio.preload = 'auto';
 
-const savedName = localStorage.getItem('live-zetamac:name');
+const savedName = localStorage.getItem('operand:name') || localStorage.getItem('live-zetamac:name');
 if (savedName) {
   nameInput.value = savedName;
 }
@@ -417,7 +417,7 @@ function showErrorAck(response) {
 }
 
 function persistName() {
-  localStorage.setItem('live-zetamac:name', nameInput.value.trim());
+  localStorage.setItem('operand:name', nameInput.value.trim());
 }
 
 function updateCreateVisibility() {
