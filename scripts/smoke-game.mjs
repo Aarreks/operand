@@ -1,18 +1,15 @@
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import { pathToFileURL } from 'node:url';
-
-const projectRoot = path.resolve(import.meta.dirname, '..');
-const serverPath = path.join(projectRoot, 'server.js');
-const source = await fs.readFile(serverPath, 'utf8');
-const harnessPath = path.join(projectRoot, `.server-harness-${process.pid}-${Date.now()}.mjs`);
-const harnessSource = source
-  .replace(/server\.listen\([\s\S]*?\n\}\);/, '')
-  .concat('\nexport { makeRoom, makePlayer, getProblem, makePenaltyProblem, makeNegativeProblem, advancePlayer, isLosing };\n');
-
-await fs.writeFile(harnessPath, harnessSource);
-const { makeRoom, makePlayer, getProblem, makePenaltyProblem, makeNegativeProblem, advancePlayer, isLosing } = await import(pathToFileURL(harnessPath).href);
+import {
+  advancePlayer,
+  cleanName,
+  getProblem,
+  isLosing,
+  makeNegativeProblem,
+  makePenaltyProblem,
+  makePlayer,
+  makeRoom,
+  normalizeRoomId
+} from '../server.js';
 
 const room = makeRoom('smoke');
 const player = makePlayer('p1', 'Ada', room);
@@ -73,6 +70,9 @@ assert.equal(player.penaltyReturnProblem, null);
 
 assert.equal(isLosing({ score: 3 }, { score: 4 }), true);
 assert.equal(isLosing({ score: 4 }, { score: 4 }), false);
+assert.equal(cleanName('  Ada Lovelace  '), 'Ada Lovelace');
+assert.equal(cleanName(''), 'Player');
+assert.equal(cleanName('x'.repeat(30)), 'x'.repeat(18));
+assert.equal(normalizeRoomId(' AB-CD! '), 'abcd');
 
-await fs.rm(harnessPath, { force: true });
 console.log('game smoke checks passed');

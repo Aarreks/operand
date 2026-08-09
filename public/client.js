@@ -70,8 +70,12 @@ copyButton.addEventListener('click', async () => {
     return;
   }
 
-  await navigator.clipboard.writeText(makeInviteUrl(currentRoom.id));
-  copyButton.textContent = 'Copied';
+  try {
+    await navigator.clipboard.writeText(makeInviteUrl(currentRoom.id));
+    copyButton.textContent = 'Copied';
+  } catch {
+    copyButton.textContent = 'Copy failed';
+  }
   setTimeout(() => {
     copyButton.textContent = 'Copy invite link';
   }, 1200);
