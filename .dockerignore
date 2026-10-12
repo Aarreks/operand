@@ -2,3 +2,8 @@ node_modules
 npm-debug.log*
 .env
 .git
+.github
+.server-harness-*.mjs
+scripts
+docs
+README.md

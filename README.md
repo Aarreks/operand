@@ -10,8 +10,8 @@ Live site: https://operand.uk
 - Subtraction is addition in reverse, so results stay in `2..100`.
 - Multiplication uses `2..12 × 2..100`.
 - Division is multiplication in reverse, so answers stay in `2..100`.
-- The losing player periodically gets `[X] Shoot`. Shooting plays a metal-pipe sound for both players and forces the opponent to clear a red four-digit addition problem before continuing. The red problem does not add to score.
-- Gunshots have a 15-second room-wide cooldown.
+- A weighted wheel can trigger after players accumulate enough answer weight, with at least 15 seconds left in the round. The selected player's opponent solves a short negative-answer problem to finalize the shot.
+- A shot plays a metal-pipe sound for both players and gives the target a four-digit addition problem. Clearing that penalty restores the original problem without adding a point.
 
 ## Run locally
 
@@ -28,31 +28,22 @@ Open `http://localhost:3000`, create an invite, and open the copied link in anot
 npm test
 ```
 
+Real two-client room-switching and disconnect tests run in CI. For an isolated
+localhost room-churn benchmark, run `npm run bench:rooms`. See
+[verification and rollback instructions](docs/VERIFICATION.md) for the measured
+baseline, test coverage and a manual two-browser checklist.
+
 ## Deployment note
 
 This app needs a Node process that supports WebSockets. Static-only hosts are not enough unless you replace Socket.IO with a hosted realtime provider.
 
-## Cheap deployment
-
-The cheapest practical setup for immediate 1v1 play is Fly.io or Railway with one tiny always-on Node instance. Avoid static-only hosting and avoid free sleeping services if you want the second player to click the link and play immediately.
-
-### Fly.io
+## Fly.io deployment
 
 ```bash
-fly launch
-fly scale memory 256
-fly scale count 1
 fly deploy
 ```
 
-Choose the included Dockerfile when Fly asks. Keep one machine always on for the least latency, and do not use auto-stop if you want instant joins. Your invite links will look like:
-
-```text
-https://your-app.fly.dev/r/abcde
-```
-
-For shorter links, add a short custom domain in Fly and point DNS through Cloudflare:
-
-```text
-https://zeta.example.com/r/abcde
-```
+The included Dockerfile uses Node 22 and installs production dependencies only.
+Rooms live in one process, so keep a single app machine unless room routing and
+shared state are added. `fly.toml` enables automatic start/stop, which can add a
+cold-start delay. Invite links use `https://operand.uk/r/<code>`.
