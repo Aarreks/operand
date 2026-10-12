@@ -3,7 +3,6 @@ import {
   advancePlayer,
   cleanName,
   getProblem,
-  isLosing,
   makeNegativeProblem,
   makePenaltyProblem,
   makePlayer,
@@ -68,8 +67,6 @@ assert.equal(player.penaltyActive, false);
 assert.equal(player.problem, returnProblem);
 assert.equal(player.penaltyReturnProblem, null);
 
-assert.equal(isLosing({ score: 3 }, { score: 4 }), true);
-assert.equal(isLosing({ score: 4 }, { score: 4 }), false);
 assert.equal(cleanName('  Ada Lovelace  '), 'Ada Lovelace');
 assert.equal(cleanName(''), 'Player');
 assert.equal(cleanName('x'.repeat(30)), 'x'.repeat(18));

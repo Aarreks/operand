@@ -581,10 +581,6 @@ function getOpponent(room, playerId) {
   return [...room.players.values()].find((player) => player.id !== playerId) || null;
 }
 
-function isLosing(player, opponent) {
-  return Boolean(opponent) && player.score < opponent.score;
-}
-
 function clearRoomTimer(room) {
   if (room.timer) {
     clearTimeout(room.timer);
@@ -653,7 +649,6 @@ export {
   cleanName,
   createRoomId,
   getProblem,
-  isLosing,
   makeNegativeProblem,
   makePenaltyProblem,
   makePlayer,

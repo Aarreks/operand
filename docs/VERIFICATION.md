@@ -70,8 +70,8 @@ regression check; timings and memory vary by host and are not pass thresholds.
 
 ## Review and rollback
 
-This branch has not been deployed. Review and merge when ready, then use your
-existing Fly.io deployment process. The new Actions workflow only tests.
+Use `fly deploy --app op --ha=false` to deploy to the existing single-machine
+Fly.io app that owns operand.uk. The Actions workflow only tests.
 No database, external state or protocol migration is required. To undo after
 merging, `git revert <merged-change-commit>` and deploy the revert. Before merging,
 close the PR to discard the branch. Tests, benchmark and diagnostics can also be
