@@ -28,6 +28,11 @@ Open `http://localhost:3000`, create an invite, and open the copied link in anot
 npm test
 ```
 
+Real two-client room-switching and disconnect tests run in CI. For an isolated
+localhost room-churn benchmark, run `npm run bench:rooms`. See
+[verification and rollback instructions](docs/VERIFICATION.md) for the measured
+baseline, test coverage and a manual two-browser checklist.
+
 ## Deployment note
 
 This app needs a Node process that supports WebSockets. Static-only hosts are not enough unless you replace Socket.IO with a hosted realtime provider.

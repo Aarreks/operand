@@ -1,0 +1,58 @@
+{
+  "node": "v24.19.0",
+  "platform": "win32",
+  "pairs": 25,
+  "switches": 20,
+  "acknowledgements": 1100,
+  "ackMilliseconds": {
+    "p50": 4.32,
+    "p95": 6.61,
+    "p99": 7.59
+  },
+  "snapshots": {
+    "before": {
+      "rooms": 0,
+      "players": 0,
+      "roundTimers": 0,
+      "shotTimers": 0,
+      "rss": 72290304,
+      "heapTotal": 20963328,
+      "heapUsed": 11311512,
+      "external": 4083443,
+      "arrayBuffers": 146576
+    },
+    "loaded": {
+      "rooms": 25,
+      "players": 50,
+      "roundTimers": 25,
+      "shotTimers": 0,
+      "rss": 76779520,
+      "heapTotal": 32235520,
+      "heapUsed": 13665848,
+      "external": 4223672,
+      "arrayBuffers": 217358
+    },
+    "afterSwitches": {
+      "rooms": 25,
+      "players": 50,
+      "roundTimers": 0,
+      "shotTimers": 0,
+      "rss": 106807296,
+      "heapTotal": 55828480,
+      "heapUsed": 14033280,
+      "external": 4429659,
+      "arrayBuffers": 357020
+    },
+    "afterDisconnect": {
+      "rooms": 0,
+      "players": 0,
+      "roundTimers": 0,
+      "shotTimers": 0,
+      "rss": 107286528,
+      "heapTotal": 48488448,
+      "heapUsed": 13151368,
+      "external": 4154939,
+      "arrayBuffers": 216508
+    }
+  }
+}

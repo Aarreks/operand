@@ -131,7 +131,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
-    leaveRoom(socket, true);
+    leaveRoom(socket);
   });
 });
 
@@ -160,9 +160,7 @@ function joinRoom(socket, roomId, name, ack) {
 
   const existingRoom = getSocketRoom(socket);
   if (existingRoom && existingRoom.id !== room.id) {
-    existingRoom.players.delete(socket.id);
-    socket.leave(existingRoom.id);
-    emitRoom(existingRoom);
+    leaveRoom(socket);
   }
 
   socket.join(room.id);
@@ -179,7 +177,7 @@ function joinRoom(socket, roomId, name, ack) {
   ack?.({ ok: true, room: publicRoom(room, socket.id) });
 }
 
-function leaveRoom(socket, disconnected = false) {
+function leaveRoom(socket) {
   const room = getSocketRoom(socket);
   if (!room) {
     return;
@@ -636,6 +634,17 @@ function mulberry32(seed) {
     t = Math.imul(t ^ t >>> 15, t | 1);
     t ^= t + Math.imul(t ^ t >>> 7, t | 61);
     return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+// Read-only diagnostics for local integration tests and the isolated benchmark.
+// This does not add a public metrics endpoint or expose room/player contents.
+export function roomDiagnostics() {
+  return {
+    rooms: rooms.size,
+    players: [...rooms.values()].reduce((total, room) => total + room.players.size, 0),
+    roundTimers: [...rooms.values()].filter((room) => room.timer !== null).length,
+    shotTimers: [...rooms.values()].reduce((total, room) => total + room.shotTimers.size, 0)
   };
 }
 
